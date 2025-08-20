@@ -27,8 +27,164 @@ MindsDB的强大之处在于其有多个丰富而实用的功能，这些功能�
 
 #### 传统方法是这样做的
 ```mermaid
-graph TD;
-    A[开始] --> B(处理);
-    B --> C{判断};
-    C --> D[结束];
+graph LR;
+    A[模型训练] --> B(模型部署-后端开发);
+    B --> C(应用集成 （前端或后端调用） );
+```
+
+**1.模型训练(假设是Python 环境，使用Scikit-learn)**
+
+用相关库来训练模型
+```python
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+import joblib
+
+# 加载数据
+# (我们需要从数据库连接并用SQL语句加载数据到pandas DataFrame)
+df = pd.read_sql("SELECT * FROM home_rentals", db_connection)
+
+# 准备数据
+X = df[['anzahl_zimmer', 'anzahl_badezimmer', 'flaeche']]
+y = df['preis']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+# 训练模型
+model = RandomForestRegressor()
+model.fit(X_train, y_train)
+
+# 保存模型以备部署
+joblib.dump(model, 'house_price_model.pkl')
+```
+
+**2.模型部署 (后端开发)**
+
+后端工程师需要将保存的模型文件 (.pkl) 包装成一个API，例如用 Flask或FastAPI这样的Web框架。
+```python
+# app.py - 使用 Flask
+from flask import Flask, request, jsonify
+import joblib
+
+app = Flask(__name__)
+
+# 加载训练好的模型
+model = joblib.load('house_price_model.pkl')
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    # 获取请求数据
+    data = request.get_json()
+    features = [data['anzahl_zimmer'], data['anzahl_badezimmer'], data['flaeche']]
+    prediction = model.predict([features])
+    # 返回结果
+    return jsonify({'predicted_price': prediction[0]})
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
+```
+
+**3.应用集成(前端调用)**
+
+应用程序需要向部署好的API发起HTTP请求来获取预测结果。
+```python
+import requests
+# 准备需要预测的新数据
+new_house_data = {
+    'anzahl_zimmer': 3,
+    'anzahl_badezimmer': 2,
+    'flaeche': 1600
+}
+
+# 按规则调用API
+response = requests.post('http://localhost:5000/predict', json=new_house_data)
+
+# 解析结果
+predicted_price = response.json()['predicted_price']
+print(f"预测价格: {predicted_price}")
+```
+
+#### 使用MindsDB是这样的
+```mermaid
+graph LR;
+    A[数据库内模型训练] --> B(用SQL语句直接查询);
+    B --> A
+```
+
+**1.数据库内模型训练**
+
+只需要一条 CREATE MODEL 语句，MindsDB 就会自动连接数据源、选择合适的模型、训练并完成部署。
+```SQL
+CREATE MODEL mindsdb.house_price_model
+FROM postgres_db.home_rentals -- 指定数据源和表
+PREDICT preis; -- 指定要预测的目标列
+```
+
+**2.获取预测结果**
+模型训练完成后，MindsDB 会自动创建一个名为 house_price_model 的 "AI 表"。你可以像查询普通数据库表一样，用一条 SELECT 语句来获取预测结果。
+```SQL
+SELECT preis AS predicted_price
+FROM mindsdb.house_price_model
+WHERE anzahl_zimmer = 3
+  AND anzahl_badezimmer = 2
+  AND flaeche = 1600;
+```
+
+### 2.2 与数据源的广泛集成
+>MindsDB 能够连接并查询多种数据源，包括但不限于：
+
+- 关系型数据库: 如 MySQL, PostgreSQL, MariaDB等
+
+- 数据仓库: 如 Google BigQuery, Snowflake, Amazon Redshift等
+- NoSQL 数据库：如MongoDB
+
+- 应用程序和文件格式: 支持直接从应用程序（如Intercom）和文件（如 CSV）中获取数据
+
+这种兼容不同查询引擎的能力使得用户可以在不移动数据的情况下，对来自不同来源的数据进行统一的 AI 操作
+
+### 2.3 对多种AI/ML框架的支持
+>MindsDB 不仅仅局限于内置的 AutoML 功能，它还集成了业界流行的 AI 和机器学习框架，包括：
+- PyTorch
+- OpenAI (GPT-3, GPT-4)
+- HuggingFace
+- LangChain
+
+这使得开发者可以根据自己的需求，灵活选择和部署从经典的机器学习模型到先进的生成式 AI 模型
+
+### 2.4 自动化机器学习 (AutoML)
+MindsDB 内置了强大的 AutoML 功能，能够自动化数据预处理、特征工程、模型选择和训练等一系列繁琐的步骤。
+这极大地降低了机器学习的门槛，~~方便学生党水毕设课设~~
+
+即使是非专业人士也能够构建出高性能的预测模型。
+
+>(但是如果你真的想要训练出效果较好的模型，还是建议你自己写预处理逻辑)
+
+### 2.5 SQL驱动的AI工作流
+用户可以使用熟悉的 SQL 语句来完成整个AI工作流，包括：
+- CREATE DATABASE: 连接到一个新的数据源。
+- CREATE ML_ENGINE: 注册一个新的机器学习引擎（如 OpenAI）。
+- CREATE MODEL: 使用指定的引擎和数据来训练一个新的模型。
+- SELECT: 从训练好的模型（AI表）中获取预测结果。
+
+## 3.环境搭建
+MindsDB提供了多种灵活的安装和部署方式，方便快速开始
+
+### 3.1 Docker部署
+执行以下命令即可启动MindsDB：
+```bash
+sudo docker run -p 47334:47334 -p 47335:47335 mindsdb/mindsdb
+```
+启动后，可以通过浏览器访问 http://127.0.0.1:47334 来使用 MindsDB的图形化界面编辑器。如下图:
+![pic](pic/pic1.png)
+### 3.2 使用pip安装
+```bash
+python -m venv mindsdb_env
+source mindsdb_env/bin/activate
+pip install mindsdb
+```
+>注意:确保你使用的是 Python 3.8 或更高版本。
+
+### 3.3 MindsDB Cloud
+MindsDB 官方提供了云服务，这是一个完全托管的解决方案，用户无需关心部署和维护，可以直接注册并开始使用。这对于希望快速上手和用于生产环境的用户来说是一个非常方便的选择。
+
+## 
 
