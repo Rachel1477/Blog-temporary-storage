@@ -247,14 +247,21 @@ pip install lightwood
 4.导入数据
 
 打开浏览器http://0.0.0.0:47334/editor ，会出现下面这个界面：
+
 ![pic2](pic/pic2.png)
+
 之后你就可以使用MindsDB的CLI进行操作，就像使用数据库一样。
 首先导入训练数据，因为我们是从file读取，需要手动上传。点击upload file
+
 ![pic3](pic/pic3.png)
+
 然后选择你的文件夹，选中刚才预处理好的文件train_preprocessed.csv
 ,填入重新命名的新名字（例如这里使用train）
+
 ![pic4](pic/pic4.png)
+
 成功之后你点击左边这个train就可以查看导入的数据
+
 ![pic5](pic/pic5.png)
 
 5.训练和试运行
